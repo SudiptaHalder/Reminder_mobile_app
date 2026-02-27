@@ -1,24 +1,72 @@
-import { doc, setDoc, getDoc } from "firebase/firestore";
-import { db } from "../config/firebase";
+import { 
+  doc, 
+  setDoc, 
+  getDoc, 
+  updateDoc,
+  serverTimestamp 
+} from 'firebase/firestore';
+import { db } from '../config/firebase';
+import { User } from 'firebase/auth';
 
-export const createUserProfile = async (uid: string, email: string) => {
-  console.log("CREATING PROFILE FOR:", uid);
+const USERS_COLLECTION = 'users';
 
-  const userRef = doc(db, "users", uid);
+class UserService {
+  async createUserProfile(user: User): Promise<void> {
+    try {
+      const userRef = doc(db, USERS_COLLECTION, user.uid);
+      const userDoc = await getDoc(userRef);
 
-  const snapshot = await getDoc(userRef);
-
-  if (!snapshot.exists()) {
-    await setDoc(userRef, {
-      uid,
-      email,
-      createdAt: new Date(),
-      roomId: null,
-      fcmToken: null,
-    });
-
-    console.log("PROFILE CREATED SUCCESSFULLY");
-  } else {
-    console.log("PROFILE ALREADY EXISTS");
+      if (!userDoc.exists()) {
+        await setDoc(userRef, {
+          uid: user.uid,
+          email: user.email,
+          createdAt: serverTimestamp(),
+          roomId: null,
+          fcmToken: null,
+          displayName: user.displayName || null,
+          photoURL: user.photoURL || null
+        });
+      }
+    } catch (error) {
+      console.error('Error creating user profile:', error);
+      throw error;
+    }
   }
-};
+
+  async getUserProfile(userId: string) {
+    try {
+      const userRef = doc(db, USERS_COLLECTION, userId);
+      const userDoc = await getDoc(userRef);
+      
+      if (userDoc.exists()) {
+        return { id: userDoc.id, ...userDoc.data() };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error getting user profile:', error);
+      throw error;
+    }
+  }
+
+  async updateUserRoom(userId: string, roomId: string | null): Promise<void> {
+    try {
+      const userRef = doc(db, USERS_COLLECTION, userId);
+      await updateDoc(userRef, { roomId });
+    } catch (error) {
+      console.error('Error updating user room:', error);
+      throw error;
+    }
+  }
+
+  async updateFCMToken(userId: string, token: string): Promise<void> {
+    try {
+      const userRef = doc(db, USERS_COLLECTION, userId);
+      await updateDoc(userRef, { fcmToken: token });
+    } catch (error) {
+      console.error('Error updating FCM token:', error);
+      throw error;
+    }
+  }
+}
+
+export const userService = new UserService();
